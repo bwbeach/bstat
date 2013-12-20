@@ -1,3 +1,11 @@
+######################################################################
+# 
+# File: bstat.py
+# 
+# Copyright 2013 Brian Beach, All Rights Reserved.
+# 
+######################################################################
+
 import itertools
 import math
 import scipy.stats

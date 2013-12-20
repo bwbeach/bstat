@@ -251,7 +251,9 @@ def make_formatter(values):
 
 class Table(object):
 
-    def __init__(self, data, column_names, sort_key=None, reverse=False):
+    def __init__(self, data, column_names=None, sort_key=None, reverse=False):
+        if column_names is None:
+            column_names = sorted(data[0].keys())
         if sort_key is None:
             self.data = data
         else:

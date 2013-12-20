@@ -166,7 +166,9 @@ class Histogram(object):
 
     def __str__(self):
         # Figure out the scale-down factor (if needed) for an
-        # 80-column display.
+        # 80-column display.  Leaving 5 on the left (for spaces and
+        # the axis) and 5 on the right (for good measure), that leaves
+        # room for 70 stars.
         scale = 1.0
         biggest_count = max(self.counts)
         if 70 < biggest_count:

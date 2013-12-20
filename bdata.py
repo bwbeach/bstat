@@ -208,23 +208,34 @@ def make_formatter(values):
     # Get the ranges of the values.
     max_string_length = 0
     biggest_abs = 0
+    all_numbers_ints = True
+    any_numbers = False
     for v in values:
         if isinstance(v, basestring):
             max_string_length = max(max_string_length, len(v))
         elif is_number(v):
+            any_numbers = True
             biggest_abs = max(biggest_abs, abs(v))
+            if v != int(v):
+                all_numbers_ints = False
         else:
             raise Exception('Value is not string or number: %s' % v)
 
     # Make a format string for string values
-    string_format = '%%%ds' % max_string_length
+    if any_numbers:
+        string_format = '%%%ds' % max_string_length
+    else:
+        string_format = '%%-%ds' % max_string_length
 
     # Make a format string for numeric values.
     if biggest_abs < 1.0:
         left_of_decimal = 1
     else:
         left_of_decimal = int(2 + math.floor(math.log10(biggest_abs)))
-    right_of_decimal = max(0, 4 - left_of_decimal)
+    if all_numbers_ints:
+        right_of_decimal = 0
+    else:
+        right_of_decimal = max(0, 5 - left_of_decimal)
     total_size = 2 + left_of_decimal + right_of_decimal
     number_format = '%%%d.%df' % (total_size, right_of_decimal)
 
@@ -240,11 +251,11 @@ def make_formatter(values):
 
 class Table(object):
 
-    def __init__(self, data, column_names, key_name=None, reverse=False):
-        if key_name is None:
+    def __init__(self, data, column_names, sort_key=None, reverse=False):
+        if sort_key is None:
             self.data = data
         else:
-            self.data = sorted(data, key=(lambda item: item[key_name]), reverse=reverse)
+            self.data = sorted(data, key=(lambda item: item[sort_key]), reverse=reverse)
         self.column_names = column_names
         self.formatters = [
             make_formatter([item[col] for item in data])
@@ -262,13 +273,9 @@ class Table(object):
 
     def __str__(self):
         result = []
-        result.append('#\n')
-        result.append('#\n')
-        result.append('#\n')
-        result.append('\n')
 
         # Title row
-        total_width = 2 + sum(2 + w for w in self.column_widths)
+        total_width = 1 + sum(3 + w for w in self.column_widths)
         result.append('|')
         result.append('=' * (total_width - 2))
         result.append('|')
@@ -276,7 +283,7 @@ class Table(object):
         result.append('| ')
         for (col, w) in zip(self.column_names, self.column_widths):
             result.append(self.pad(col, w))
-            result.append(' |')
+            result.append(' | ')
         result.append('\n')
         result.append('|')
         result.append('=' * (total_width - 2))
@@ -288,7 +295,7 @@ class Table(object):
             result.append('| ')
             for (col, formatter, w) in zip(self.column_names, self.formatters, self.column_widths):
                 result.append(self.pad(formatter(item[col]), w))
-                result.append(' |')
+                result.append(' | ')
             result.append('\n')
         result.append('|')
         result.append('-' * (total_width - 2))

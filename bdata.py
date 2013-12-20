@@ -205,22 +205,38 @@ def is_number(x):
     return isinstance(x, float) or isinstance(x, int)
 
 def make_formatter(values):
-    if all(isinstance(v, basestring) for v in values):
-        max_length = max(len(v) for v in values)
-        format_string = '%%%ds' % max_length
-    elif all(is_number(v) for v in values):
-        biggest_abs = max(abs(v) for v in values)
-        if biggest_abs < 1.0:
-            left_of_decimal = 1
+    # Get the ranges of the values.
+    max_string_length = 0
+    biggest_abs = 0
+    for v in values:
+        if isinstance(v, basestring):
+            max_string_length = max(max_string_length, len(v))
+        elif is_number(v):
+            biggest_abs = max(biggest_abs, abs(v))
         else:
-            left_of_decimal = int(2 + math.floor(math.log10(biggest_abs)))
-        right_of_decimal = max(0, 4 - left_of_decimal)
-        total_size = 2 + left_of_decimal + right_of_decimal
-        format_string = '%%%d.%df' % (total_size, right_of_decimal)
-    else:
-        raise Exception('Values not all number or all strings: %s' % values)
-    return (lambda x: format_string % x)
+            raise Exception('Value is not string or number: %s' % v)
 
+    # Make a format string for string values
+    string_format = '%%%ds' % max_string_length
+
+    # Make a format string for numeric values.
+    if biggest_abs < 1.0:
+        left_of_decimal = 1
+    else:
+        left_of_decimal = int(2 + math.floor(math.log10(biggest_abs)))
+    right_of_decimal = max(0, 4 - left_of_decimal)
+    total_size = 2 + left_of_decimal + right_of_decimal
+    number_format = '%%%d.%df' % (total_size, right_of_decimal)
+
+    # Make the format function
+    def formatter(v):
+        if isinstance(v, basestring):
+            return string_format % v
+        elif is_number(v):
+            return number_format % v
+        else:
+            raise Exception('Value is not a string or number: %s' % v)
+    return formatter
 
 class Table(object):
 
@@ -253,14 +269,18 @@ class Table(object):
 
         # Title row
         total_width = 2 + sum(2 + w for w in self.column_widths)
-        result.append('=' * total_width)
+        result.append('|')
+        result.append('=' * (total_width - 2))
+        result.append('|')
         result.append('\n')
         result.append('| ')
         for (col, w) in zip(self.column_names, self.column_widths):
             result.append(self.pad(col, w))
             result.append(' |')
         result.append('\n')
-        result.append('=' * total_width)
+        result.append('|')
+        result.append('=' * (total_width - 2))
+        result.append('|')
         result.append('\n')
 
         # Data rows
@@ -270,7 +290,9 @@ class Table(object):
                 result.append(self.pad(formatter(item[col]), w))
                 result.append(' |')
             result.append('\n')
-        result.append('-' * total_width)
+        result.append('|')
+        result.append('-' * (total_width - 2))
+        result.append('|')
         result.append('\n')
 
         return ''.join(result)

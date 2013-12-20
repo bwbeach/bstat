@@ -288,7 +288,7 @@ class Table(object):
             result.append(' | ')
         result.append('\n')
         result.append('|')
-        result.append('=' * (total_width - 2))
+        result.append('-' * (total_width - 2))
         result.append('|')
         result.append('\n')
 
@@ -300,7 +300,7 @@ class Table(object):
                 result.append(' | ')
             result.append('\n')
         result.append('|')
-        result.append('-' * (total_width - 2))
+        result.append('=' * (total_width - 2))
         result.append('|')
         result.append('\n')
 

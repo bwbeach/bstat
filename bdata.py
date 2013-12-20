@@ -115,68 +115,89 @@ class TestUtilities(unittest.TestCase):
     def round_to_nice(self):
         self.assertAlmostEqual(3.1, round_to_nice(math.pi))
 
-def histogram_bins(values):
-    """
-    Given a list of values, returns:
+class Histogram(object):
 
-        (lower_bound, bin_size, bin_count)
-        
-    It's guaranteed that:
+    def __init__(self, name, values):
+        self.name = name
+        self.values = values
 
-        lower_bound <= min(values)
-        max(values) <= lower_bound + bin_size * bin_count
+        # Figure out the number of bins.
+        # This is Sturges's rule from: 
+        # http://onlinestatbook.com/2/graphing_distributions/histograms.html
+        low = min(values)
+        high = max(values)
+        span = float(high - low)
+        bin_count = 1 + round(log2(len(values)))
 
-    This function attempts to make lower_bound and bin_size be 'nice'
-    values (with few significant digits), and to set bin_count near a
-    'good' number for the number of values.
-    """
-    # This is Sturges's rule from: 
-    # http://onlinestatbook.com/2/graphing_distributions/histograms.html
-    low = min(values)
-    high = max(values)
-    span = float(high - low)
-    bin_count = 1 + round(log2(len(values)))
+        # Start with a nice number in the middle, and work out from there.
+        middle = round_to_nice((low + high) / 2.0, span / bin_count)
 
-    # Start with a nice number in the middle, and work out from there.
-    middle = round_to_nice((low + high) / 2.0, span / bin_count)
+        # Pick a nice bin size, big enough to reach from the middle out to
+        # both ends.
+        biggest_side = max(middle - low, high - middle)
+        bin_size = round_up_to_nice((biggest_side * 2.0) / bin_count)
 
-    # Pick a nice bin size, big enough to reach from the middle out to
-    # both ends.
-    biggest_side = max(middle - low, high - middle)
-    bin_size = round_up_to_nice((biggest_side * 2.0) / bin_count)
+        # Find the lower bound.  This works for both even and odd numbers
+        # of bins.
+        lower_bound = middle - bin_size * (bin_count / 2.0)
 
-    # Find the lower bound.  This works for both even and odd numbers
-    # of bins.
-    lower_bound = middle - bin_size * (bin_count / 2.0)
+        # Compute the bin count
+        bin_count = int(math.ceil((high - lower_bound) / bin_size))
 
-    # Compute the bin count
-    bin_count = int(math.ceil((high - lower_bound) / bin_size))
+        assert lower_bound <= min(values)
+        assert max(values) <= lower_bound + bin_size * bin_count
 
-    assert lower_bound <= min(values)
-    assert max(values) <= lower_bound + bin_size * bin_count
-    return (lower_bound, bin_size, bin_count)
+        # Save the info
+        self.lower_bound = lower_bound
+        self.bin_size = bin_size
+        self.bin_count = bin_count
+
+        # Compute the bin boundaries, because they're handy
+        self.bin_boundaries = [
+            lower_bound + i * bin_size
+            for i in xrange(bin_count + 1)
+            ]
+
+        # Count the values in each bin
+        self.counts = [0] * bin_count
+        for v in values:
+            i = int((v - lower_bound) / bin_size)
+            self.counts[i] += 1
+
+    def __str__(self):
+        # Figure out the scale-down factor (if needed) for an
+        # 80-column display.
+        scale = 1.0
+        biggest_count = max(self.counts)
+        if 70 < biggest_count:
+            scale = round_up_to_nice(biggest_count / 70.0)
+
+        # Build the display string.
+        result = []
+        result.append('#\n')
+        result.append('# Histogram of %s:\n' % self.name)
+        result.append('#\n')
+        if scale != 1.0:
+            result.append('# One star = %s\n' % scale)
+            result.append('#\n')
+        result.append('\n')
+        for i in range(self.bin_count):
+            result.append(str(self.bin_boundaries[i]))
+            result.append('\n')
+            result.append('    |')
+            result.append('*' * int(round(self.counts[i] / scale)))
+            result.append('\n')
+        result.append(str(self.bin_boundaries[-1]))
+        result.append('\n')
+        return ''.join(result)
 
 class TestHistogram(unittest.TestCase):
 
     def test_bins(self):
-        (lb, bs, bc) = histogram_bins([1.2 + i/5.0 for i in range(16)])
-        self.assertAlmostEqual(1.0, lb)
-        self.assertAlmostEqual(0.6, bs)
-        self.assertAlmostEqual(6, bc)
-
-def histogram(values):
-    # Find the bins
-    (lower_bound, bin_size, bin_count) = histogram_bins(values)
-
-    # Count the values in each bin
-    counts = [0] * bin_count
-    for v in values:
-        i = int((v - lower_bound) / bin_size)
-        counts[i] += 1
-
-    # Show the results    
-    for i in xrange(bin_count):
-        print lower_bound + i * bin_size, lower_bound + (i+1) * bin_size, counts[i]
+        h = Histogram('test', [1.2 + i/5.0 for i in range(16)])
+        self.assertAlmostEqual(0.75, h.lower_bound)
+        self.assertAlmostEqual(0.7, h.bin_size)
+        self.assertAlmostEqual(5, h.bin_count)
 
 class Facet(object):
 

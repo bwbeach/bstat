@@ -23,6 +23,7 @@ column, and each of the dicts is a row.
 STRUCTURE: Columns
 """
 
+import itertools
 import math
 import unittest
 
@@ -32,39 +33,38 @@ def log2(x):
 def in_range(x, low, high):
     return (low <= x) and (x <= high)
 
-def round_up_to_nice(x):
+def round_up_to_nice(x, tolerance=None):
     """
     Given a number, round it up to a 'nice' number that is 'close'.
     In this sense, a nice number is one with fewer significant digits,
-    and close is within 10%.
+    and close is within +/- tolerance.
     """
-    below = math.pow(10, math.floor(math.log10(x)))
-    increment = below
-    result = below
-    while not in_range(result / x, 0.9999, 1.1):
-        if x < result:
-            result = result - increment
-            increment = increment / 10.0
-        else:
-            result += increment
-    return result
+    if tolerance is None:
+        tolerance = abs(x / 10.0)
+    quantum = math.pow(10, math.ceil(math.log10(tolerance)))
+    for divisor in itertools.cycle([2, 5]):
+        result = math.ceil(x / quantum) * quantum
+        assert x <= result
+        if result - x <= tolerance:
+            return result
+        quantum /= divisor
 
-def round_down_to_nice(x):
+def round_down_to_nice(x, tolerance=None):
     """
     Given a number, round it down to a 'nice' number that is 'close'.
     In this sense, a nice number is one with fewer significant digits,
     and close is within 10%.
     """
-    below = math.pow(10, math.floor(math.log10(x)))
-    increment = below
-    result = below
-    while not in_range(result / x, 0.9, 1.0001):
-        if result < x:
-            result += increment
-        else:
-            result -= increment
-            increment /= 10.0
-    return result
+    if tolerance is None:
+        tolerance = abs(x / 10.0)
+    assert 0 < tolerance
+    quantum = math.pow(10, math.ceil(math.log10(tolerance)))
+    for divisor in itertools.cycle([2, 5]):
+        result = math.floor(x / quantum) * quantum
+        assert result <= x
+        if x - result <= tolerance:
+            return result
+        quantum /= divisor
 
 def nearest(x, values):
     """
@@ -77,12 +77,16 @@ def nearest(x, values):
             result = v
     return result
 
-def round_to_nice(x):
+def round_to_nice(x, tolerance=None):
     """
     Given a number, returns a 'nice' number that is near it.  The
     result could be less than or greater than x.
     """
-    return nearest(x, [round_down_to_nice(x), round_up_to_nice(x)])
+    choices = [
+        round_down_to_nice(x, tolerance),
+        round_up_to_nice(x, tolerance)
+        ]
+    return nearest(x, choices)
 
 class TestUtilities(unittest.TestCase):
 
@@ -94,6 +98,8 @@ class TestUtilities(unittest.TestCase):
         self.assertAlmostEqual(12, round_up_to_nice(11.8))
         self.assertAlmostEqual(0.8, round_up_to_nice(0.799))
         self.assertAlmostEqual(0.8, round_up_to_nice(0.8))
+        self.assertAlmostEqual(-1.0, round_up_to_nice(-1.1))
+        self.assertAlmostEqual(-0.75, round_up_to_nice(-0.799))
         
     def test_round_down_to_nice(self):
         self.assertAlmostEqual(80, round_down_to_nice(85))
@@ -128,14 +134,20 @@ def histogram_bins(values):
     # http://onlinestatbook.com/2/graphing_distributions/histograms.html
     low = min(values)
     high = max(values)
-    target_bin_count = 1 + round(log2(len(values)))
+    span = float(high - low)
+    bin_count = 1 + round(log2(len(values)))
 
-    # Pick a lower bound
-    lower_bound = round_down_to_nice(low)
+    # Start with a nice number in the middle, and work out from there.
+    middle = round_to_nice((low + high) / 2.0, span / bin_count)
 
-    # Pick a nice bucket size
-    bin_size = round_up_to_nice((high - lower_bound) / target_bin_count)
-    print lower_bound, low, high, target_bin_count, (high - low) / target_bin_count, bin_size
+    # Pick a nice bin size, big enough to reach from the middle out to
+    # both ends.
+    biggest_side = max(middle - low, high - middle)
+    bin_size = round_up_to_nice((biggest_side * 2.0) / bin_count)
+
+    # Find the lower bound.  This works for both even and odd numbers
+    # of bins.
+    lower_bound = middle - bin_size * (bin_count / 2.0)
 
     # Compute the bin count
     bin_count = int(math.ceil((high - lower_bound) / bin_size))
@@ -150,7 +162,7 @@ class TestHistogram(unittest.TestCase):
         (lb, bs, bc) = histogram_bins([1.2 + i/5.0 for i in range(16)])
         self.assertAlmostEqual(1.0, lb)
         self.assertAlmostEqual(0.6, bs)
-        self.assertAlmostEqual(5, bc)
+        self.assertAlmostEqual(6, bc)
 
 def histogram(values):
     # Find the bins

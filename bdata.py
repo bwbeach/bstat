@@ -201,6 +201,86 @@ class TestHistogram(unittest.TestCase):
         self.assertAlmostEqual(0.7, h.bin_size)
         self.assertAlmostEqual(5, h.bin_count)
 
+def is_number(x):
+    return isinstance(x, float) or isinstance(x, int)
+
+def make_formatter(values):
+    if all(isinstance(v, basestring) for v in values):
+        max_length = max(len(v) for v in values)
+        format_string = '%%%ds' % max_length
+    elif all(is_number(v) for v in values):
+        biggest_abs = max(abs(v) for v in values)
+        if biggest_abs < 1.0:
+            left_of_decimal = 1
+        else:
+            left_of_decimal = int(2 + math.floor(math.log10(biggest_abs)))
+        right_of_decimal = max(0, 4 - left_of_decimal)
+        total_size = 2 + left_of_decimal + right_of_decimal
+        format_string = '%%%d.%df' % (total_size, right_of_decimal)
+    else:
+        raise Exception('Values not all number or all strings: %s' % values)
+    return (lambda x: format_string % x)
+
+
+class Table(object):
+
+    def __init__(self, data, column_names, key_name=None, reverse=False):
+        if key_name is None:
+            self.data = data
+        else:
+            self.data = sorted(data, key=(lambda item: item[key_name]), reverse=reverse)
+        self.column_names = column_names
+        self.formatters = [
+            make_formatter([item[col] for item in data])
+            for col in column_names
+            ]
+        first_values = [data[0][col] for col in column_names]
+        first_row = [
+            formatter(v)
+            for (formatter, v) in zip(self.formatters, first_values)
+            ]
+        self.column_widths = [
+            max(len(col), len(val))
+            for (col, val) in zip(column_names, first_row)
+            ]
+
+    def __str__(self):
+        result = []
+        result.append('#\n')
+        result.append('#\n')
+        result.append('#\n')
+        result.append('\n')
+
+        # Title row
+        total_width = 2 + sum(2 + w for w in self.column_widths)
+        result.append('=' * total_width)
+        result.append('\n')
+        result.append('| ')
+        for (col, w) in zip(self.column_names, self.column_widths):
+            result.append(self.pad(col, w))
+            result.append(' |')
+        result.append('\n')
+        result.append('=' * total_width)
+        result.append('\n')
+
+        # Data rows
+        for item in self.data:
+            result.append('| ')
+            for (col, formatter, w) in zip(self.column_names, self.formatters, self.column_widths):
+                result.append(self.pad(formatter(item[col]), w))
+                result.append(' |')
+            result.append('\n')
+        result.append('-' * total_width)
+        result.append('\n')
+
+        return ''.join(result)
+
+    def pad(self, s, width):
+        if len(s) < width:
+            return (' ' * (width - len(s))) + s
+        else:
+            return s[:width]
+
 class Facet(object):
 
     def __init__(self, list_of_dicts, key):

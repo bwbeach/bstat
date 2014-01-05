@@ -219,7 +219,7 @@ def make_formatter(values):
             if v != int(v):
                 all_numbers_ints = False
         else:
-            raise Exception('Value is not string or number: %s' % v)
+            max_string_length = max(max_string_length, len(str(v)))
 
     # Make a format string for string values
     if any_numbers:
@@ -246,24 +246,27 @@ def make_formatter(values):
         elif is_number(v):
             return number_format % v
         else:
-            raise Exception('Value is not a string or number: %s' % v)
+            return string_format % str(v)
     return formatter
 
 class Table(object):
 
-    def __init__(self, data, column_names=None, sort_key=None, reverse=False):
+    def __init__(self, data, column_names=None, sort_key=None, reverse=False,
+                 default_value=None):
         if column_names is None:
             column_names = sorted(data[0].keys())
+
         if sort_key is None:
             self.data = data
         else:
             self.data = sorted(data, key=(lambda item: item[sort_key]), reverse=reverse)
         self.column_names = column_names
+        self.default_value = default_value
         self.formatters = [
-            make_formatter([item[col] for item in data])
+            make_formatter([item.get(col, default_value) for item in data])
             for col in column_names
             ]
-        first_values = [data[0][col] for col in column_names]
+        first_values = [data[0].get(col, self.default_value) for col in column_names]
         first_row = [
             formatter(v)
             for (formatter, v) in zip(self.formatters, first_values)
@@ -296,7 +299,7 @@ class Table(object):
         for item in self.data:
             result.append('| ')
             for (col, formatter, w) in zip(self.column_names, self.formatters, self.column_widths):
-                result.append(self.pad(formatter(item[col]), w))
+                result.append(self.pad(formatter(item.get(col, self.default_value)), w))
                 result.append(' | ')
             result.append('\n')
         result.append('|')
@@ -305,6 +308,16 @@ class Table(object):
         result.append('\n')
 
         return ''.join(result)
+
+    def csv(self):
+        result = []
+        result.append(','.join(self.column_names))
+        for item in self.data:
+            result.append(','.join(
+                formatter(item.get(col, self.default_value)).strip()
+                for (col, formatter) in zip(self.column_names, self.formatters)
+                ))
+        return '\n'.join(result) + '\n'
 
     def pad(self, s, width):
         if len(s) < width:

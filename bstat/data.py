@@ -162,6 +162,8 @@ class Histogram(object):
         self.counts = [0] * bin_count
         for v in values:
             i = int((v - lower_bound) / bin_size)
+            # before using as an index, deal with roundoff error
+            i = max(0, min(bin_count - 1, i))
             self.counts[i] += 1
 
     def __str__(self):
@@ -200,6 +202,15 @@ class TestHistogram(unittest.TestCase):
         self.assertAlmostEqual(0.75, h.lower_bound)
         self.assertAlmostEqual(0.7, h.bin_size)
         self.assertAlmostEqual(5, h.bin_count)
+
+    def test_regress_1(self):
+        # The outlier value was ending up outside the range of all of
+        # the bins.
+        h = Histogram('test', [28, 27, 27, 24, 27, 24, 28, 27, 26,
+                               27, 28, 25, 25, 27, 24, 28, 27, 25, 
+                               24, 26, 26, 24, 26, 25, 27, 35, 26, 
+                               25, 27, 27, 28, 27, 28, 27, 26, 27,
+                               24, 24, 25, 27, 27, 25, 24, 27, 25])
 
 def is_number(x):
     return isinstance(x, float) or isinstance(x, int)

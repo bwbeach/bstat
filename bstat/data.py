@@ -216,6 +216,10 @@ def is_number(x):
     return isinstance(x, float) or isinstance(x, int)
 
 def make_formatter(values):
+    """
+    Returns a function that can be used to format the values in the
+    list.  Picks a reasonable number of digits of accuracy.
+    """
     # Get the ranges of the values.
     max_string_length = 0
     biggest_abs = 0
@@ -262,8 +266,20 @@ def make_formatter(values):
 
 class Table(object):
 
+    """
+    Knows how to display a table of data.
+
+    The data is in the form of a list of dicts:
+        [ { 'a' : 4, 'b' : 8 },
+          { 'a' : 5, 'b' : 9 } ]
+    """
+
     def __init__(self, data, column_names=None, sort_key=None, reverse=False,
-                 default_value=None):
+                 default_value=None, formatters=None):
+
+        if formatters is None:
+            formatters = {}
+        
         if column_names is None:
             column_names = sorted(data[0].keys())
 
@@ -274,7 +290,7 @@ class Table(object):
         self.column_names = column_names
         self.default_value = default_value
         self.formatters = [
-            make_formatter([item.get(col, default_value) for item in data])
+            self._make_formatter(col, formatters)
             for col in column_names
             ]
         first_values = [data[0].get(col, self.default_value) for col in column_names]
@@ -286,6 +302,20 @@ class Table(object):
             max(len(col), len(val))
             for (col, val) in zip(column_names, first_row)
             ]
+
+    def _make_formatter(self, column_name, explicit_formatters):
+        if column_name in explicit_formatters:
+            formatter = explicit_formatters[column_name]
+            if isinstance(formatter, basestring):
+                def format_string(v):
+                    return formatter % v
+                return format_string
+            else:
+                return formatter
+        else:
+            values = [item.get(column_name, self.default_value) 
+                      for item in self.data]
+            return make_formatter(values)
 
     def __str__(self):
         result = []
@@ -330,11 +360,66 @@ class Table(object):
                 ))
         return '\n'.join(result) + '\n'
 
+    def html(self):
+        result = []
+        result.append('<table>')
+        result.append('  <tbody>')
+        result.append('    <tr>')
+        for col in self.column_names:
+            result.append('      <th>%s</th>' % col)
+        result.append('    </tr>')
+        for item in self.data:
+            result.append('    <tr>')
+            for (col, formatter) in zip(self.column_names, self.formatters):
+                value = formatter(item.get(col, self.default_value)).strip()
+                result.append('      <td>%s</td>' % value)
+            result.append('    </tr>')
+        result.append('  <tbody>')
+        result.append('</table>')
+        return '\n'.join(result) + '\n'
+        
     def pad(self, s, width):
         if len(s) < width:
             return (' ' * (width - len(s))) + s
         else:
             return s[:width]
+
+class TestTable(unittest.TestCase):
+
+    def test_formatter(self):
+        data = [ { 'a' : 1, 'b' : 2, 'c' : 3 } ]
+        table = Table(data, formatters={'b' : '%02d', 'c' : (lambda x : 'n')})
+        self.assertEqual(
+            '|===============|\n' +
+            '|    a |  b | c | \n' +
+            '|---------------|\n' +
+            '|    1 | 02 | n | \n' +
+            '|===============|\n',
+            str(table)
+            )
+
+    def test_html(self):
+        data = [ { 'a' : 1, 'b' : 2 }, { 'a' : 3, 'b' : 4 } ]
+        table = Table(data)
+        self.assertEqual(
+            '<table>\n' +
+            '  <tbody>\n' +
+            '    <tr>\n' + 
+            '      <th>a</th>\n' +
+            '      <th>b</th>\n' +
+            '    </tr>\n' +
+            '    <tr>\n' +
+            '      <td>1</td>\n' +
+            '      <td>2</td>\n' +
+            '    </tr>\n' +
+            '    <tr>\n' +
+            '      <td>3</td>\n' + 
+            '      <td>4</td>\n' + 
+            '    </tr>\n' + 
+            '  <tbody>\n' +
+            '</table>\n',
+            table.html()
+            )
 
 class Facet(object):
 

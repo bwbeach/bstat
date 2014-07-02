@@ -8,6 +8,7 @@
 
 import itertools
 import math
+import scipy.special
 import scipy.stats
 import unittest
 
@@ -123,6 +124,25 @@ def percent_in_range_normal(mean, sd, low, high):
     high_percentile = scipy.stats.norm.cdf(high_sigma)
     return high_percentile - low_percentile
 
+def poisson_confidence_interval(number_of_occurrences, sample_size, confidence=0.95):
+    """
+    Returns a triple (low, rate, high):
+
+        low - the rate that is the lower bound of the confidence range
+        expected - the best guess at the rate
+        high - the rate that is the upper bound of the confidence range
+
+    https://en.wikipedia.org/wiki/Poisson_distribution (see CDF)
+    http://newton.cx/~peter/2012/06/poisson-distribution-confidence-intervals/
+    """
+    rate = float(number_of_occurrences) / float(sample_size)
+    a = 1.0 - confidence
+    low_occurrences = scipy.special.gammaincinv(number_of_occurrences, a / 2.0)
+    low_rate = low_occurrences / sample_size
+    high_occurrences = scipy.special.gammaincinv(number_of_occurrences + 1, 1.0 - a / 2.0)
+    high_rate = high_occurrences / sample_size
+    return (low_rate, rate, high_rate)
+
 class TestStats(unittest.TestCase):
 
     def test_standard_deviation(self):
@@ -167,39 +187,13 @@ class TestStats(unittest.TestCase):
         # http://onlinestatbook.com/2/normal_distribution/areas_normal.html
         self.assertAlmostEqual(0.7871163, percent_in_range_normal(38, 6, 30, 45))
 
-print scipy.stats.norm.cdf((6.0 - 18.0) / 5.0)
-
-data = """
-          8	  8
-  9	 10
- 10	  9
- 12	 12
- 10	  9
- 13	 11
-  8	  9
-  7	 10
-  7	 10
- 12	 12
- 11	  8
- 11	 11
-  9	  9
- 13	 11
-  9	  9
- 10	  9
- 11	 11
- 10	 12
-  7	  9
-  8	 10
-  8	  8
- 11	 10
-  8	  9
- 13	 13
-  9	 13"""
-
-data = [int(s) for s in data.split()]
-(x, y) = unzip(group_pairs(data))
-#print repr(list(x))
-#print repr(list(y))
-
-unittest.main()
+    def test_poisson_confidence_interval(self):
+        # from: http://www.statsdirect.com/help/default.htm#rates/poisson_rate_ci.htm
+        (low, rate, high) = poisson_confidence_interval(14, 400)
+        self.assertAlmostEqual(0.0191348, low)
+        self.assertAlmostEqual(0.0350000, rate)
+        self.assertAlmostEqual(0.0587241, high)
+        
+if __name__ == '__main__':
+    unittest.main()
 

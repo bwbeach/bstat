@@ -6,6 +6,12 @@
 # 
 ######################################################################
 
+from .bstat import (
+    bayes,
+    poisson_confidence_interval
+    )
+    
+
 from .data import (
     Histogram,
     Table

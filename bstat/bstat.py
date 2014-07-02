@@ -135,10 +135,15 @@ def poisson_confidence_interval(number_of_occurrences, sample_size, confidence=0
     https://en.wikipedia.org/wiki/Poisson_distribution (see CDF)
     http://newton.cx/~peter/2012/06/poisson-distribution-confidence-intervals/
     """
+    if sample_size == 0:
+        raise Exception("sample_size cannot be 0")
     rate = float(number_of_occurrences) / float(sample_size)
     a = 1.0 - confidence
-    low_occurrences = scipy.special.gammaincinv(number_of_occurrences, a / 2.0)
-    low_rate = low_occurrences / sample_size
+    if number_of_occurrences != 0:
+        low_occurrences = scipy.special.gammaincinv(number_of_occurrences, a / 2.0)
+        low_rate = low_occurrences / sample_size
+    else:
+        low_rate = 0.0
     high_occurrences = scipy.special.gammaincinv(number_of_occurrences + 1, 1.0 - a / 2.0)
     high_rate = high_occurrences / sample_size
     return (low_rate, rate, high_rate)
@@ -193,6 +198,11 @@ class TestStats(unittest.TestCase):
         self.assertAlmostEqual(0.0191348, low)
         self.assertAlmostEqual(0.0350000, rate)
         self.assertAlmostEqual(0.0587241, high)
+        
+        (low, rate, high) = poisson_confidence_interval(0, 400)
+        self.assertAlmostEqual(0.0, low)
+        self.assertAlmostEqual(0.0, rate)
+        self.assertAlmostEqual(0.0092222, high)
         
 if __name__ == '__main__':
     unittest.main()

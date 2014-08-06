@@ -275,7 +275,7 @@ class Table(object):
     """
 
     def __init__(self, data, column_names=None, sort_key=None, reverse=False,
-                 default_value=None, formatters=None):
+                 default_value=None, formatters=None, titles=None):
 
         if formatters is None:
             formatters = {}
@@ -293,6 +293,14 @@ class Table(object):
             self._make_formatter(col, formatters)
             for col in column_names
             ]
+        
+        if titles is None:
+            titles = {}
+        self.column_titles = [
+            titles.get(column_name, column_name)
+            for column_name in column_names
+            ]
+        
         first_values = [data[0].get(col, self.default_value) for col in column_names]
         first_row = [
             formatter(v)
@@ -300,7 +308,7 @@ class Table(object):
             ]
         self.column_widths = [
             max(len(col), len(val))
-            for (col, val) in zip(column_names, first_row)
+            for (col, val) in zip(self.column_titles, first_row)
             ]
 
     def _make_formatter(self, column_name, explicit_formatters):
@@ -327,7 +335,7 @@ class Table(object):
         result.append('|')
         result.append('\n')
         result.append('| ')
-        for (col, w) in zip(self.column_names, self.column_widths):
+        for (col, w) in zip(self.column_titles, self.column_widths):
             result.append(self.pad(col, w))
             result.append(' | ')
         result.append('\n')
@@ -352,7 +360,7 @@ class Table(object):
 
     def csv(self):
         result = []
-        result.append(','.join(self.column_names))
+        result.append(','.join(self.column_titles))
         for item in self.data:
             result.append(','.join(
                 formatter(item.get(col, self.default_value)).strip()
@@ -365,7 +373,7 @@ class Table(object):
         result.append('<table>')
         result.append('  <tbody>')
         result.append('    <tr>')
-        for col in self.column_names:
+        for col in self.column_titles:
             result.append('      <th>%s</th>' % col)
         result.append('    </tr>')
         for item in self.data:
@@ -395,6 +403,18 @@ class TestTable(unittest.TestCase):
             '|---------------|\n' +
             '|    1 | 02 | n | \n' +
             '|===============|\n',
+            str(table)
+            )
+
+    def test_titles(self):
+        data = [ { 'a' : 1, 'b' : 2, 'c' : 3 } ]
+        table = Table(data, titles={'a':'A', 'c':'foo'})
+        self.assertEqual(
+            '|====================|\n' +
+            '|    A |    b |  foo | \n' +
+            '|--------------------|\n' +
+            '|    1 |    2 |    3 | \n' +
+            '|====================|\n',
             str(table)
             )
 

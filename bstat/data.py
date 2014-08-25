@@ -123,14 +123,15 @@ class AutoBins(object):
     bucket boundaries be nice round numbers.
     """
 
-    def __init__(self, values):
+    def __init__(self, values, bin_count=None):
         # Figure out the number of bins.
         # This is Sturges's rule from: 
         # http://onlinestatbook.com/2/graphing_distributions/histograms.html
         low = min(values)
         high = max(values)
         span = float(high - low)
-        bin_count = 1 + round(log2(len(values)))
+        if bin_count is None:
+            bin_count = 1 + round(log2(len(values)))
 
         # Start with a nice number in the middle, and work out from there.
         middle = round_to_nice((low + high) / 2.0, span / bin_count)
@@ -195,12 +196,6 @@ class AutoBins(object):
     def is_logarithmic(self):
         return self.logarithmic
     
-    def get_lower_bound(self):
-        return self.lower_bound
-
-    def get_bin_size(self):
-        return self.bin_size
-
     def get_bin_count(self):
         return self.bin_count
 
@@ -224,9 +219,15 @@ class TestAutoBins(unittest.TestCase):
     
     def test_linear(self):
         bins = AutoBins([1.2 + i/5.0 for i in range(16)])
-        self.assertAlmostEqual(0.75, bins.get_lower_bound())
+        self.assertAlmostEqual(0.75, bins.get_bin_boundaries()[0])
         self.assertAlmostEqual(1.45, bins.get_bin_boundaries()[1])
         self.assertAlmostEqual(5, bins.get_bin_count())
+
+    def test_manual_bin_count(self):
+        bins = AutoBins([1.2 + i/5.0 for i in range(16)], bin_count=4)
+        self.assertAlmostEqual(1.2, bins.get_bin_boundaries()[0])
+        self.assertAlmostEqual(2.1, bins.get_bin_boundaries()[1])
+        self.assertAlmostEqual(4, bins.get_bin_count())
 
     def test_logrithmic(self):
         values = [1.1 ** i for i in range(100)]
@@ -244,7 +245,6 @@ class Histogram(object):
 
         # Count the values in each bin
         bin_count = self.bins.get_bin_count()
-        lower_bound = self.bins.get_lower_bound()
         self.counts = [0] * bin_count
         for v in values:
             bin_index = self.bins.get_bin_index_for_value(v)

@@ -115,12 +115,15 @@ class TestUtilities(unittest.TestCase):
     def round_to_nice(self):
         self.assertAlmostEqual(3.1, round_to_nice(math.pi))
 
-class Histogram(object):
+class AutoBins(object):
 
-    def __init__(self, name, values):
-        self.name = name
-        self.values = values
+    """
+    Given a set of values, figures out a reasonable number of bins for
+    a histogram over those values.  An attempt is made to make the
+    bucket boundaries be nice round numbers.
+    """
 
+    def __init__(self, values):
         # Figure out the number of bins.
         # This is Sturges's rule from: 
         # http://onlinestatbook.com/2/graphing_distributions/histograms.html
@@ -147,24 +150,105 @@ class Histogram(object):
         assert lower_bound <= min(values)
         assert max(values) <= lower_bound + bin_size * bin_count
 
-        # Save the info
-        self.lower_bound = lower_bound
-        self.bin_size = bin_size
-        self.bin_count = bin_count
-
         # Compute the bin boundaries, because they're handy
-        self.bin_boundaries = [
+        bin_boundaries = [
             lower_bound + i * bin_size
             for i in xrange(bin_count + 1)
             ]
 
+        # Should we switch to logarithmic?  If more than half the
+        # values are NOT in the first bin, then we're good.
+        number_in_first_bucket = len([
+            value 
+            for value in values
+            if value < bin_boundaries[1]
+            ])
+        self.logarithmic = (
+            0 < min(values) and
+            (len(values) / 2 < number_in_first_bucket)
+            )
+        if not self.logarithmic:
+            self.lower_bound = lower_bound
+            self.bin_size = bin_size
+            self.bin_count = bin_count
+            self.bin_boundaries = bin_boundaries
+            return
+
+        # Now we'll re-do the bucketization for the logarithmic case.
+        lower_bound = round_down_to_nice(min(values))
+        upper_bound = max(values)
+
+        # If b is the bin count, then we want the b-th root of the
+        # difference between the lower and upper bounds to be the 
+        # growth factor between buckets.
+        b = bin_count
+        total_growth = float(upper_bound) / float(lower_bound)
+        bucket_exponent = round_up_to_nice(total_growth ** (1.0 / b))
+        
+        self.lower_bound = lower_bound
+        self.bin_count = bin_count
+        self.bin_boundaries = [
+            round_up_to_nice(lower_bound * (bucket_exponent ** i))
+            for i in xrange(bin_count + 1)
+            ]
+
+    def is_logarithmic(self):
+        return self.logarithmic
+    
+    def get_lower_bound(self):
+        return self.lower_bound
+
+    def get_bin_size(self):
+        return self.bin_size
+
+    def get_bin_count(self):
+        return self.bin_count
+
+    def get_bin_boundaries(self):
+        """
+        Returns one more number than the bin count.  The bins are the
+        ranges between adjacent numbers in the list.
+        """
+        return self.bin_boundaries
+
+    def get_bin_index_for_value(self, value):
+        for i in xrange(self.bin_count):
+            if value < self.bin_boundaries[i+1]:
+                return i
+        return self.bin_count - 1
+
+    def __str__(self):
+        return "<bins %s>" % (", ".join(str(b) for b in self.bin_boundaries))
+    
+class TestAutoBins(unittest.TestCase):
+    
+    def test_linear(self):
+        bins = AutoBins([1.2 + i/5.0 for i in range(16)])
+        self.assertAlmostEqual(0.75, bins.get_lower_bound())
+        self.assertAlmostEqual(1.45, bins.get_bin_boundaries()[1])
+        self.assertAlmostEqual(5, bins.get_bin_count())
+
+    def test_logrithmic(self):
+        values = [1.1 ** i for i in range(100)]
+        bins = AutoBins(values)
+        self.assertEqual(True, bins.is_logarithmic())
+        self.assertAlmostEqual(1, bins.get_bin_boundaries()[0])
+        self.assertAlmostEqual(3.5, bins.get_bin_boundaries()[1])
+
+class Histogram(object):
+
+    def __init__(self, name, values):
+        self.name = name
+        self.values = values
+        self.bins = AutoBins(values)
+
         # Count the values in each bin
+        bin_count = self.bins.get_bin_count()
+        lower_bound = self.bins.get_lower_bound()
         self.counts = [0] * bin_count
         for v in values:
-            i = int((v - lower_bound) / bin_size)
-            # before using as an index, deal with roundoff error
-            i = max(0, min(bin_count - 1, i))
-            self.counts[i] += 1
+            bin_index = self.bins.get_bin_index_for_value(v)
+            self.counts[bin_index] += 1
 
     def __str__(self):
         # Figure out the scale-down factor (if needed) for an
@@ -176,6 +260,10 @@ class Histogram(object):
         if 70 < biggest_count:
             scale = round_up_to_nice(biggest_count / 70.0)
 
+        # get some info
+        bin_count = self.bins.get_bin_count()
+        bin_boundaries = self.bins.get_bin_boundaries()
+
         # Build the display string.
         result = []
         result.append('#\n')
@@ -185,23 +273,17 @@ class Histogram(object):
             result.append('# One star = %s\n' % scale)
             result.append('#\n')
         result.append('\n')
-        for i in range(self.bin_count):
-            result.append(str(self.bin_boundaries[i]))
+        for i in range(bin_count):
+            result.append(str(bin_boundaries[i]))
             result.append('\n')
             result.append('    |')
             result.append('*' * int(round(self.counts[i] / scale)))
             result.append('\n')
-        result.append(str(self.bin_boundaries[-1]))
+        result.append(str(bin_boundaries[-1]))
         result.append('\n')
         return ''.join(result)
 
 class TestHistogram(unittest.TestCase):
-
-    def test_bins(self):
-        h = Histogram('test', [1.2 + i/5.0 for i in range(16)])
-        self.assertAlmostEqual(0.75, h.lower_bound)
-        self.assertAlmostEqual(0.7, h.bin_size)
-        self.assertAlmostEqual(5, h.bin_count)
 
     def test_regress_1(self):
         # The outlier value was ending up outside the range of all of

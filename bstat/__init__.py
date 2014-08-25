@@ -13,6 +13,7 @@ from .bstat import (
     
 
 from .data import (
+    AutoBins,
     Histogram,
     Table
     )

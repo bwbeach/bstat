@@ -39,6 +39,8 @@ def round_up_to_nice(x, tolerance=None):
     In this sense, a nice number is one with fewer significant digits,
     and close is within +/- tolerance.
     """
+    if x == 0:
+        return 0
     if tolerance is None:
         tolerance = abs(x / 10.0)
     quantum = math.pow(10, math.ceil(math.log10(tolerance)))
@@ -55,6 +57,8 @@ def round_down_to_nice(x, tolerance=None):
     In this sense, a nice number is one with fewer significant digits,
     and close is within 10%.
     """
+    if x == 0:
+        return 0
     if tolerance is None:
         tolerance = abs(x / 10.0)
     assert 0 < tolerance
@@ -102,6 +106,7 @@ class TestUtilities(unittest.TestCase):
         self.assertAlmostEqual(-0.75, round_up_to_nice(-0.799))
         
     def test_round_down_to_nice(self):
+        self.assertAlmostEqual(0, round_down_to_nice(0))
         self.assertAlmostEqual(80, round_down_to_nice(85))
         self.assertAlmostEqual(11, round_down_to_nice(11.8))
         self.assertAlmostEqual(0.8, round_down_to_nice(0.8))

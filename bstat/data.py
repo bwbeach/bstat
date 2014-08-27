@@ -157,6 +157,15 @@ class AutoBins(object):
         values = set(v for (v,c) in values_and_counts)
         total_count = sum(c for (v,c) in values_and_counts)
 
+        # With a single value, it's a degenerate case.
+        if len(values) == 1:
+            value = values_and_counts[0][0]
+            self.lower_bound = value
+            self.bin_size = 0
+            self.bin_count = 1
+            self.bin_boundaries = [value, value]
+            return
+
         # Figure out the number of bins.
         # This is Sturges's rule from: 
         # http://onlinestatbook.com/2/graphing_distributions/histograms.html
@@ -255,6 +264,10 @@ class AutoBins(object):
         return "<bins %s>" % (", ".join(str(b) for b in self.bin_boundaries))
     
 class TestAutoBins(unittest.TestCase):
+
+    def test_single_value(self):
+        bins = AutoBins([1])
+        self.assertEqual([1, 1], bins.get_bin_boundaries())
     
     def test_linear(self):
         bins = AutoBins([1.2 + i/5.0 for i in range(16)])

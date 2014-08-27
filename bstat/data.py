@@ -164,6 +164,7 @@ class AutoBins(object):
             self.bin_size = 0
             self.bin_count = 1
             self.bin_boundaries = [value, value]
+            self.logarithmic = False
             return
 
         # Figure out the number of bins.

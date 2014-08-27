@@ -45,6 +45,8 @@ def round_up_to_nice(x, tolerance=None):
         return 0
     if tolerance is None:
         tolerance = abs(x / 10.0)
+    if tolerance == 0:
+        return x
     quantum = math.pow(10, math.ceil(math.log10(tolerance)))
     for divisor in itertools.cycle([2, 5]):
         result = math.ceil(x / quantum) * quantum
@@ -63,7 +65,8 @@ def round_down_to_nice(x, tolerance=None):
         return 0
     if tolerance is None:
         tolerance = abs(x / 10.0)
-    assert 0 < tolerance
+    if tolerance == 0:
+        return x
     quantum = math.pow(10, math.ceil(math.log10(tolerance)))
     for divisor in itertools.cycle([2, 5]):
         result = math.floor(x / quantum) * quantum

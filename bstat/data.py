@@ -150,6 +150,12 @@ class AutoBins(object):
         # of bins.
         lower_bound = middle - bin_size * (bin_count / 2.0)
 
+        # Special case for all-positive values.  In this case, we
+        # don't want a lower bound that's negative because it looks
+        # weird.
+        if lower_bound < 0 and 0 < low:
+            lower_bound = 0
+
         # Compute the bin count
         bin_count = int(math.ceil((high - lower_bound) / bin_size))
 
@@ -234,12 +240,13 @@ class TestAutoBins(unittest.TestCase):
         self.assertAlmostEqual(2.1, bins.get_bin_boundaries()[1])
         self.assertAlmostEqual(4, bins.get_bin_count())
 
-    def test_logrithmic(self):
+    def test_logarithmic(self):
         values = [1.1 ** i for i in range(100)]
         bins = AutoBins(values)
+        print bins.get_bin_boundaries()
         self.assertEqual(True, bins.is_logarithmic())
         self.assertAlmostEqual(1, bins.get_bin_boundaries()[0])
-        self.assertAlmostEqual(3.5, bins.get_bin_boundaries()[1])
+        self.assertAlmostEqual(4.0, bins.get_bin_boundaries()[1])
 
 class Histogram(object):
 

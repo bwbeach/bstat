@@ -27,6 +27,8 @@ import itertools
 import math
 import unittest
 
+from collections import Counter
+
 def log2(x):
     return math.log(x) / math.log(2)
 
@@ -126,9 +128,32 @@ class AutoBins(object):
     Given a set of values, figures out a reasonable number of bins for
     a histogram over those values.  An attempt is made to make the
     bucket boundaries be nice round numbers.
+
+    You can initialize this class with either a list of values, like
+    this:
+
+        [0, 1, 5, 7, 1, 4, 2, 2, 2, 2, 2]
+
+    Or, if you have already summarized your data by counting the
+    values, you can initialize it with a list of value_and_count
+    pairs.  This is equivalent to the one above:
+
+        [(0, 1), (1, 2), (2, 5), (4, 1), (5, 1), (6,1)]
     """
 
-    def __init__(self, values, bin_count=None):
+    def __init__(self, values=None, values_and_counts=None, bin_count=None):
+        # Check arguments
+        if (values is None) and (values_and_counts is None):
+            raise ValueError('Either values or values an counts should be set')
+        if (values is not None) and (values_and_counts is not None):
+            raise ValueError('Only one of values or values_and_counts should be set')
+
+        # Make sure that both values and values_and_counts are set
+        if values_and_counts is None:
+            values_and_counts = [(v, c) for (v, c) in Counter(values).iteritems()]
+        values = set(v for (v,c) in values_and_counts)
+        total_count = sum(c for (v,c) in values_and_counts)
+
         # Figure out the number of bins.
         # This is Sturges's rule from: 
         # http://onlinestatbook.com/2/graphing_distributions/histograms.html
@@ -136,7 +161,7 @@ class AutoBins(object):
         high = max(values)
         span = float(high - low)
         if bin_count is None:
-            bin_count = 1 + round(log2(len(values)))
+            bin_count = 1 + round(log2(total_count))
 
         # Start with a nice number in the middle, and work out from there.
         middle = round_to_nice((low + high) / 2.0, span / bin_count)
@@ -159,8 +184,8 @@ class AutoBins(object):
         # Compute the bin count
         bin_count = int(math.ceil((high - lower_bound) / bin_size))
 
-        assert lower_bound <= min(values)
-        assert max(values) <= lower_bound + bin_size * bin_count
+        assert lower_bound <= low
+        assert high <= lower_bound + bin_size * bin_count
 
         # Compute the bin boundaries, because they're handy
         bin_boundaries = [
@@ -170,14 +195,14 @@ class AutoBins(object):
 
         # Should we switch to logarithmic?  If more than half the
         # values are NOT in the first bin, then we're good.
-        number_in_first_bucket = len([
-            value 
-            for value in values
-            if value < bin_boundaries[1]
-            ])
+        number_in_first_bucket = sum(
+            c
+            for (v,c) in values_and_counts
+            if v < bin_boundaries[1]
+            )
         self.logarithmic = (
-            0 < min(values) and
-            (len(values) / 2 < number_in_first_bucket)
+            0 < low and
+            (total_count / 2 < number_in_first_bucket)
             )
         if not self.logarithmic:
             self.lower_bound = lower_bound
@@ -187,8 +212,8 @@ class AutoBins(object):
             return
 
         # Now we'll re-do the bucketization for the logarithmic case.
-        lower_bound = round_down_to_nice(min(values))
-        upper_bound = max(values)
+        lower_bound = round_down_to_nice(low)
+        upper_bound = high
 
         # If b is the bin count, then we want the b-th root of the
         # difference between the lower and upper bounds to be the 
@@ -243,7 +268,6 @@ class TestAutoBins(unittest.TestCase):
     def test_logarithmic(self):
         values = [1.1 ** i for i in range(100)]
         bins = AutoBins(values)
-        print bins.get_bin_boundaries()
         self.assertEqual(True, bins.is_logarithmic())
         self.assertAlmostEqual(1, bins.get_bin_boundaries()[0])
         self.assertAlmostEqual(4.0, bins.get_bin_boundaries()[1])
@@ -346,7 +370,64 @@ class TestAutoBins(unittest.TestCase):
         2300000000, 2400000000, 2500000000, 2600000000, 2900000000,
         3000000000, 4300000000, 180000000000, 6600000000000]
         bins = AutoBins(values, bin_count=8)
-        print bins
+        self.assertLessEqual(0, bins.get_bin_boundaries()[0])
+
+    def test_regress_2(self):
+        values_and_counts = [(1, 6221), (2, 1310), (3,
+        801), (4, 876), (5, 434), (6, 285), (7, 47), (8, 304), (9,
+        143), (10, 52), (11, 93), (12, 256), (13, 223), (14, 63), (15,
+        133), (16, 71), (17, 153), (18, 76), (19, 49), (20, 124), (21,
+        87), (22, 36), (23, 13), (24, 73), (25, 44), (26, 53), (27,
+        76), (28, 73), (29, 36), (30, 28), (31, 47), (32, 10), (33,
+        9), (34, 16), (35, 47), (36, 109), (37, 51), (38, 54), (39,
+        2), (40, 5), (41, 101), (42, 18), (43, 28), (44, 30), (45,
+        11), (46, 43), (47, 36), (48, 10), (49, 15), (50, 21), (51,
+        115), (52, 49), (53, 52), (54, 31), (55, 42), (56, 50), (57,
+        29), (58, 174), (59, 24), (60, 11), (61, 9), (62, 22), (63,
+        7), (64, 5), (65, 9), (66, 22), (67, 19), (68, 22), (69, 81),
+        (70, 11), (71, 14), (72, 10), (73, 9), (74, 33), (75, 8), (76,
+        26), (77, 9), (78, 13), (79, 11), (80, 7), (81, 15), (82, 23),
+        (83, 8), (84, 18), (85, 25), (86, 39), (87, 10), (88, 34),
+        (89, 7), (90, 10), (91, 11), (92, 17), (93, 18), (94, 7), (95,
+        10), (96, 13), (97, 34), (98, 19), (99, 15), (100, 122), (110,
+        132), (120, 264), (130, 241), (140, 189), (150, 183), (160,
+        162), (170, 61), (180, 74), (190, 75), (200, 81), (210, 86),
+        (220, 54), (230, 33), (240, 36), (250, 131), (260, 53), (270,
+        103), (280, 106), (290, 33), (300, 31), (310, 42), (320, 33),
+        (330, 29), (340, 19), (350, 9), (360, 5), (370, 6), (380, 11),
+        (390, 13), (400, 15), (410, 13), (420, 17), (430, 43), (440,
+        53), (450, 33), (460, 41), (470, 41), (480, 40), (490, 33),
+        (500, 34), (510, 35), (520, 39), (530, 54), (540, 79), (550,
+        74), (560, 22), (570, 15), (580, 12), (590, 15), (600, 22),
+        (610, 13), (620, 19), (630, 16), (640, 17), (650, 15), (660,
+        21), (670, 20), (680, 22), (690, 19), (700, 27), (710, 55),
+        (720, 48), (730, 19), (740, 16), (750, 12), (760, 12), (770,
+        11), (780, 11), (790, 14), (800, 15), (810, 15), (820, 14),
+        (830, 13), (840, 15), (850, 17), (860, 17), (870, 16), (880,
+        22), (890, 26), (900, 21), (910, 28), (920, 25), (930, 31),
+        (940, 34), (950, 31), (960, 27), (970, 27), (980, 11), (990,
+        11), (1000, 65), (1100, 151), (1200, 193), (1300, 175), (1400,
+        185), (1500, 133), (1600, 94), (1700, 121), (1800, 64), (1900,
+        45), (2000, 12), (2100, 11), (2200, 8), (2300, 10), (2400, 6),
+        (2500, 8), (2600, 5), (2700, 8), (2800, 7), (2900, 7), (3000,
+        6), (3100, 9), (3200, 9), (3300, 3), (3400, 10), (3500, 6),
+        (3600, 6), (3700, 9), (3800, 5), (3900, 7), (4000, 6), (4100,
+        9), (4200, 3), (4300, 8), (4400, 5), (4500, 8), (4600, 4),
+        (4700, 5), (4800, 6), (4900, 3), (5000, 5), (5100, 4), (5200,
+        2), (5300, 5), (5400, 2), (5500, 3), (5600, 6), (5700, 1),
+        (5800, 4), (5900, 4), (6000, 3), (6100, 4), (6200, 5), (6300,
+        1), (6400, 4), (6500, 4), (6600, 2), (6700, 4), (6800, 2),
+        (6900, 4), (7000, 3), (7100, 4), (7200, 4), (7300, 4), (7400,
+        3), (7500, 4), (7600, 2), (7700, 3), (7800, 5), (7900, 2),
+        (8000, 2), (8100, 3), (8200, 3), (8300, 3), (8400, 3), (8500,
+        4), (8600, 3), (8700, 1), (8800, 3), (8900, 3), (9000, 2),
+        (9100, 2), (9200, 3), (9300, 2), (9400, 3), (9500, 2), (9600,
+        2), (9700, 2), (9800, 3), (9900, 2), (10000, 11), (11000, 19),
+        (12000, 16), (13000, 14), (14000, 14), (15000, 11), (16000,
+        6), (17000, 6), (18000, 7), (19000, 7), (20000, 6), (21000,
+        3), (370000, 15)]
+        bins = AutoBins(values_and_counts=values_and_counts)
+        self.assertTrue(bins.is_logarithmic())
 
 class Histogram(object):
 
